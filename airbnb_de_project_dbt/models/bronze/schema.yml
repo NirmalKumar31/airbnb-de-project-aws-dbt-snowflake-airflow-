@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: bronze_hosts
+    columns:
+      - name: host_id
+        tests:
+          - not_null
+          - unique
+
+  - name: bronze_listings
+    columns:
+      - name: listing_id
+        tests:
+          - not_null
+          - unique
+
+  - name: bronze_guests
+    columns:
+      - name: guest_id
+        tests:
+          - not_null
+          - unique
+
+  - name: bronze_bookings
+    columns:
+      - name: booking_id
+        tests:
+          - not_null
+          - unique
+
+  - name: bronze_reviews
+    columns:
+      - name: review_id
+        tests:
+          - not_null
+          - unique
+
+  - name: bronze_availability_calendar
+    columns:
+      - name: listing_id
+        tests:
+          - not_null
+      - name: calendar_date
+        tests:
+          - not_null
+
+  - name: bronze_listing_events
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique

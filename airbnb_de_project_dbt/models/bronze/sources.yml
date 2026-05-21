@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: raw
+    database: AIRBNB_DE
+    schema: RAW
+    tables:
+      - name: raw_hosts
+      - name: raw_listings
+      - name: raw_guests
+      - name: raw_bookings
+      - name: raw_reviews
+      - name: raw_availability_calendar
+      - name: raw_listing_events

@@ -1,0 +1,96 @@
+name: 'airbnb_de_project_dbt'
+version: '1.0.0'
+profile: 'airbnb_de_project_dbt'
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+models:
+  airbnb_de_project_dbt:
+
+    bronze:
+      +materialized: incremental
+      +schema: bronze
+
+    silver:
+      +materialized: incremental
+      +schema: silver
+
+    gold:
+      +materialized: table
+      +schema: gold
+seeds:
+  airbnb_de_project_dbt:
+    +schema: gold
+
+vars:
+  obt_booking_cols:
+
+    #  Booking core 
+    - {col: booking_id_clean}
+    - {col: booking_status}
+    - {col: payment_status}
+    - {col: source_platform}
+    - {col: promo_code}
+    - {col: booked_at}
+    - {col: check_in_date}
+    - {col: check_out_date}
+    - {col: calculated_nights}
+    - {col: num_guests}
+    - {col: num_adults}
+    - {col: num_children}
+
+    #  Revenue 
+    - {col: base_price}
+    - {col: cleaning_fee_charged}
+    - {col: service_fee}
+    - {col: taxes}
+    - {col: calculated_total_price}
+    - {col: revenue_per_night}
+
+    #  Booking flags 
+    - {col: is_last_minute_booking}
+    - {col: is_long_stay}
+    - {col: booking_lead_days}
+    - {col: is_price_mismatch}
+
+    #  Listing at booking time 
+    - {col: listing_name}
+    - {col: room_type}
+    - {col: property_type}
+    - {col: neighborhood}
+    - {col: city}
+    - {col: country}
+    - {col: listed_price_at_booking}
+    - {col: cancellation_policy_at_booking}
+    - {col: instant_bookable_at_booking}
+    - {col: amenity_count}
+
+    #  Host at booking time 
+    - {col: host_name}
+    - {col: is_superhost_at_booking}
+    - {col: response_rate_at_booking}
+    - {col: listings_count_at_booking}
+
+    #  Guest 
+    - {col: guest_name}
+    - {col: nationality_iso2}
+    - {col: gender}
+    - {col: total_trips}
+    - {col: average_rating_as_guest}
+    - {col: verified_id}
+
+    #  Check-in date attributes 
+    - {col: year}
+    - {col: month}
+    - {col: month_name}
+    - {col: quarter}
+    - {col: day_name}
+    - {col: is_weekend}
+    - {col: is_us_federal_holiday}
+    - {col: season}

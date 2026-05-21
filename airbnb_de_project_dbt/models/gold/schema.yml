@@ -1,0 +1,84 @@
+version: 2
+
+models:
+  - name: gold_dim_hosts
+    columns:
+      - name: host_key
+        tests:
+          - not_null
+          - unique
+      - name: host_id
+        tests:
+          - not_null
+
+  - name: gold_dim_listings
+    columns:
+      - name: listing_key
+        tests:
+          - not_null
+          - unique
+      - name: listing_id
+        tests:
+          - not_null
+
+  - name: gold_dim_guests
+    columns:
+      - name: guest_key
+        tests:
+          - not_null
+          - unique
+      - name: guest_id
+        tests:
+          - not_null
+
+  - name: gold_fct_bookings
+    columns:
+      - name: booking_key
+        tests:
+          - not_null
+          - unique
+      - name: booking_id_clean
+        tests:
+          - not_null
+      - name: listing_key
+        tests:
+          - relationships:
+              to: ref('gold_dim_listings')
+              field: listing_key
+      - name: host_key
+        tests:
+          - relationships:
+              to: ref('gold_dim_hosts')
+              field: host_key
+      - name: calculated_total_price
+        tests:
+          - not_null
+      - name: calculated_nights
+        tests:
+          - not_null
+
+  - name: gold_fct_reviews
+    columns:
+      - name: review_key
+        tests:
+          - not_null
+          - unique
+
+  - name: gold_fct_listing_events
+    columns:
+      - name: event_key
+        tests:
+          - not_null
+          - unique
+      - name: funnel_step
+        tests:
+          - accepted_values:
+              values: [1, 2, 3, 4, 5, 6]
+              quote: false
+
+  - name: gold_obt_bookings
+    columns:
+      - name: booking_id_clean
+        tests:
+          - not_null
+          - unique

@@ -1,0 +1,13 @@
+airbnb_de_project_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: snowflake
+      account: YOUR_SNOWFLAKE_ACCOUNT
+      user: YOUR_USERNAME
+      password: YOUR_PASSWORD
+      role: SYSADMIN
+      database: AIRBNB_DE
+      warehouse: AIRBNB_WH
+      schema: dbt_schema
+      threads: 4

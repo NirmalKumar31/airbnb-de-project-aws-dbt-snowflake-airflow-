@@ -1,0 +1,92 @@
+version: 2
+
+models:
+  - name: silver_hosts
+    columns:
+      - name: host_id
+        tests:
+          - not_null
+          - unique
+      - name: is_superhost
+        tests:
+          - accepted_values:
+              values: [true, false]
+              quote: false
+
+  - name: silver_listings
+    columns:
+      - name: listing_id
+        tests:
+          - not_null
+          - unique
+      - name: instant_bookable
+        tests:
+          - accepted_values:
+              values: [true, false]
+              quote: false
+      - name: room_type
+        tests:
+          - accepted_values:
+              values: ['entire home/apt', 'private room',
+                       'shared room', 'hotel room']
+
+  - name: silver_guests
+    columns:
+      - name: guest_id
+        tests:
+          - not_null
+          - unique
+      - name: gender
+        tests:
+          - accepted_values:
+              values: ['M', 'F', 'Other', 'Unknown']
+
+  - name: silver_bookings
+    columns:
+      - name: booking_id_clean
+        tests:
+          - not_null
+          - unique
+      - name: booking_status
+        tests:
+          - accepted_values:
+              values: ['pending', 'confirmed', 'completed',
+                       'cancelled', 'rejected','no_show']
+
+  - name: silver_reviews
+    columns:
+      - name: review_id
+        tests:
+          - not_null
+          - unique
+      - name: is_public
+        tests:
+          - accepted_values:
+              values: [true, false]
+              quote: false
+
+  - name: silver_availability_calendar
+    columns:
+      - name: listing_id
+        tests:
+          - not_null
+      - name: calendar_date
+        tests:
+          - not_null
+      - name: is_available
+        tests:
+          - accepted_values:
+              values: [true, false]
+              quote: false
+
+  - name: silver_listing_events
+    columns:
+      - name: event_id
+        tests:
+          - not_null
+          - unique
+      - name: event_type_clean
+        tests:
+          - accepted_values:
+              values: ['view', 'click', 'save', 'booking_start',
+                       'booking_complete', 'search_impression']
