@@ -21,7 +21,7 @@ default_args = {
 with DAG(
     dag_id="airbnb_dbt_pipeline",
     description="Bronze → Silver → Gold with test gates",
-    schedule="@hourly",
+    schedule="0 */6 * * *",
     start_date=datetime(2026, 5, 21),
     catchup=False,
     default_args=default_args,
