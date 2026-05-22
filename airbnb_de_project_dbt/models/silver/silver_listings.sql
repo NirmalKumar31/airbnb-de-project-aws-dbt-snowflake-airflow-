@@ -199,6 +199,17 @@ cleaned AS (
 
     FROM source
 
+),
+deduped AS (
+    SELECT *,
+        ROW_NUMBER() OVER (
+            PARTITION BY listing_id
+            ORDER BY _loaded_at DESC
+        ) AS _row_num
+    FROM cleaned
 )
 
-SELECT * FROM cleaned
+SELECT * EXCLUDE _row_num
+FROM deduped
+WHERE _row_num = 1
+
