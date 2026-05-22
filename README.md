@@ -1,18 +1,10 @@
-# 🏠 Airbnb Streaming Data Engineering Pipeline
+# Airbnb Streaming Data Engineering Pipeline
 
 > A production-grade streaming data pipeline built on AWS, Snowflake, and dbt — featuring real-time ingestion, a three-layer Medallion architecture, SCD-2 history tracking, and automated orchestration via Apache Airflow.
 
 ---
 
-## 📌 What makes this project different
-
-Most portfolio projects download a clean CSV and run some SQL on it. This project does the opposite — it **intentionally generates dirty data** with 10 realistic data quality problems, then builds a transformation pipeline that systematically detects, flags, and fixes every one of them.
-
-The result is a pipeline that mirrors what real production systems actually look like: messy at the source, clean at the analytical layer, with full audit trails of what was wrong and how it was fixed.
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 EventBridge (every 30 min)
