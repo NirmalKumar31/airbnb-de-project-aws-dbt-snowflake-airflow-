@@ -165,7 +165,7 @@ bronze_run → bronze_test → silver_run → silver_test → snapshot → gold_
 
 ### Airflow DAG Screenshot
 
-> ![Airlow DAG](images_visuals/airlfow_dag_graph.png)
+> ![Airlow DAG](images_visuals/airflow_dag_graph.png)
 
 ---
 
@@ -173,7 +173,7 @@ bronze_run → bronze_test → silver_run → silver_test → snapshot → gold_
 
 The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold — 21 models, all dependencies tracked automatically.
 
-> 📸 ![Dbt Lineage Graph](images_visuals/dbt_lineage_graph.png)
+> ![Dbt Lineage Graph](images_visuals/dbt_lineage_graph.png)
 
 ---
 
