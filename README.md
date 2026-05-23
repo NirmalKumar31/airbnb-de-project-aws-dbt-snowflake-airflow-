@@ -76,7 +76,7 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 230 records/run
 | dbt models | 21 |
 | dbt data quality tests | 64 (Bronze: 14 · Silver: 25 · Gold: 25) |
 | Dirty data patterns designed in | 10 |
-| Pipeline schedule | Every 12 hours (`0 */12 * * *`) |
+| Pipeline schedule | Every 6 hours (`0 */6 * * *`) |
 | Airflow DAG tasks | 7 (with test gates between each layer) |
 
 ---
