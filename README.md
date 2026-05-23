@@ -1,4 +1,4 @@
-# Airbnb Streaming Data Engineering Pipeline
+# 🏠 Airbnb Streaming Data Engineering Pipeline
 
 > A production-grade streaming data pipeline built on AWS, Snowflake, and dbt — featuring real-time ingestion, a three-layer Medallion architecture, SCD-2 history tracking, and automated orchestration via Apache Airflow.
 
@@ -10,11 +10,11 @@
 EventBridge (every 30 min)
         │
         ▼
-Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 185 records/run
+Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 230 records/run
         │
-        ├──► airbnb-events-stream      (3 shards)  → listing_events
-        ├──► airbnb-transactions-stream (2 shards) → bookings + reviews
-        └──► airbnb-dimensions-stream  (1 shard)   → listings + hosts + guests + calendar
+        ├──► airbnb-events-stream      (3 shards)  → 50 listing_events
+        ├──► airbnb-transactions-stream (2 shards) → 5 new bookings + 10 updates + 30 reviews
+        └──► airbnb-dimensions-stream  (1 shard)   → 10 listings + 5 hosts + 20 guests + 100 calendar
                     │
                     ▼
         Kinesis Firehose (60s buffer, dynamic partitioning on entity_type)
@@ -37,12 +37,12 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 185 records/run
 
 ### Architecture Diagram
 
-> 📸 **[INSERT: Full architecture diagram here]**
+> ![Architecture Diagram](images_visuals/architecture.jpeg)
 > *(Screenshot of the complete AWS → Snowflake → dbt → Airflow flow)*
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Layer | Technology | Purpose |
 |---|---|---|
@@ -60,42 +60,29 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 185 records/run
 
 ---
 
-## 📊 Pipeline Metrics
+## Pipeline Metrics
 
 | Metric | Value |
 |---|---|
+| Datasets generated | 7 (hosts, listings, guests, bookings, reviews, calendar, events) |
 | RAW tables | 7 |
 | Total columns across RAW | 138 |
-| Records generated per Lambda run | ~185 |
-| Records per hour (at full throughput) | ~13,310 |
-| dbt models | 21 |
-| dbt data quality tests | 62 |
-| Dirty data patterns designed in | 10 |
+| Records per Lambda run | 230 |
+| Lambda trigger frequency | Every 30 minutes (EventBridge) |
+| Records per hour | ~460 |
+| Breakdown per run | 50 events · 5 new bookings · 10 booking updates · 30 reviews · 10 listings · 5 hosts · 20 guests · 100 calendar |
+| Kinesis streams | 3 (events: 3 shards · transactions: 2 shards · dimensions: 1 shard) |
+| Firehose delivery streams | 3 (60s buffer · dynamic entity_type partitioning) |
 | Snowpipe latency | < 10 seconds |
-| Pipeline schedule | Every 12 hours |
+| dbt models | 21 |
+| dbt data quality tests | 64 (Bronze: 14 · Silver: 25 · Gold: 25) |
+| Dirty data patterns designed in | 10 |
+| Pipeline schedule | Every 12 hours (`0 */12 * * *`) |
+| Airflow DAG tasks | 7 (with test gates between each layer) |
 
 ---
 
-## 🦠 The 10 Intentional Dirty Data Patterns
-
-This is the core differentiator of the project. Every pattern below was deliberately injected into the generator and is systematically fixed in the Silver layer.
-
-| # | Pattern | Dirty Example | Silver Fix |
-|---|---|---|---|
-| 1 | Boolean chaos | `t / f / Y / N / 1 / 0 / yes / no` | `CASE WHEN LOWER(TRIM(...)) IN (...)` |
-| 2 | Price string formatting | `$1,200.00 / $120 / 120.5` | `REGEXP_REPLACE + TRY_TO_DECIMAL` |
-| 3 | Rating scale mismatch | `4.8` (0–5 scale) vs `96` (0–100 scale) | `CASE WHEN val > 5 THEN val / 20.0` |
-| 4 | European decimal comma | `4,5` instead of `4.5` | `REPLACE(',', '.') before casting` |
-| 5 | Date format variety | `2019-01-15 / 01/15/2019 / January 15th, 2019` | `REGEXP_REPLACE ordinals + TRY_TO_DATE AUTO` |
-| 6 | Amenities encoding chaos | `["WiFi","Pool"] / WiFi\|Pool / WiFi, Pool` | `TRY_PARSE_JSON → SPLIT → TO_ARRAY` |
-| 7 | Pre-computed wrong nights | `nights_count = 5` but `checkout - checkin = 7` | Recalculate + `nights_count_corrected` flag |
-| 8 | Price reconciliation failure | `total_price ≠ base + fees + taxes` (20% of records) | Recalculate from components + `is_price_mismatch` flag |
-| 9 | Logical invalids | `check_out < check_in` / `num_children = -1` | NULL + `is_date_valid = FALSE` flag |
-| 10 | Micro-batch duplicates | Same record in two Firehose buffer windows | `ROW_NUMBER() PARTITION BY id ORDER BY _loaded_at DESC` |
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 airbnb-streaming-de-project/
@@ -117,7 +104,9 @@ airbnb-streaming-de-project/
 │   ├── tests/
 │   │   ├── assert_booking_dates_valid.sql
 │   │   ├── assert_ratings_in_range.sql
-│   │   └── assert_revenue_positive.sql
+│   │   ├── assert_revenue_positive.sql
+│   │   ├── assert_silver_hosts_no_duplicates.sql    # gates snapshot
+│   │   └── assert_silver_listings_no_duplicates.sql # gates snapshot
 │   ├── macros/
 │   │   └── generate_schema_name.sql  # prevents dbt_schema_bronze naming
 │   ├── dbt_project.yml
@@ -132,7 +121,7 @@ airbnb-streaming-de-project/
 
 ---
 
-## 🥇 Gold Layer — Star Schema Design
+##  Gold Layer — Star Schema Design
 
 ```
                     ┌─────────────┐
@@ -162,7 +151,7 @@ Also: fct_reviews (347 rows) · fct_listing_events (1,200 rows) · obt_bookings 
 
 ---
 
-## 🔄 Airflow DAG
+## Airflow DAG
 
 7 tasks in a sequential chain with test gates — if any test fails, downstream layers are skipped. Bad data never propagates forward.
 
@@ -170,33 +159,45 @@ Also: fct_reviews (347 rows) · fct_listing_events (1,200 rows) · obt_bookings 
 bronze_run → bronze_test → silver_run → silver_test → snapshot → gold_run → gold_test
 ```
 
-- Schedule: `0 */12 * * *` (midnight and noon every day)
+- Schedule: `0 */6 * * *` (midnight and noon every day)
 - Retry: 1 automatic retry with 5-minute delay
 - Each task is a BashOperator calling dbt with full path resolution
 
 ### Airflow DAG Screenshot
 
-> 📸 **[INSERT: Airflow graph view showing all 7 tasks green]**
-> *(Trigger DAG manually, wait for all tasks to succeed, screenshot the Graph tab)*
+> ![Airlow DAG](images_visuals/airlfow_dag.png)
+> *(screenshot the Graph tab)*
 
 ---
 
-## 📈 dbt Lineage Graph
+## dbt Lineage Graph
 
 The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold — 21 models, all dependencies tracked automatically.
 
-> 📸 **[INSERT: dbt docs lineage graph]**
+> 📸 ![Dbt Lineage Graph](images_visuals/dbt_lineage_graph.png)
 > *(Run `dbt docs generate && dbt docs serve`, click the graph icon bottom-right, screenshot with "All selected")*
 
 ---
 
-## ✅ Proof the Pipeline Works
+## AWS and Snowflake Infrastructure Screenshots
 
-### 1 — Snowpipe auto-ingestion confirmed
+
+### 1 - AWS Infrastructure
+![EventBridge Scheduler](images_visuals/eventbridge_scheduler.png)
+![Lambda ](images_visuals/lambda.png)
+![Kinesis Data Stream](images_visuals/kinesis_datastream.png)
+![Kinesis Firehose](images_visuals/amazon_firehose.png)
+![S3_Bucket](images_visuals/s3_bucket.png)
+![SQS Event Notification](images_visuals/sqs_eventnotification.png)
+
+### 2 - Snowflake Snowpipe, Schema and Tables
+![Snowflake](images_visuals/Snowflake_schema_tables.png)
+![Snowflake](images_visuals/Snowflake_schema_tables1.png)
+![Snowflake](images_visuals/Snowflake_schema_tables.2png)
+
+
 
 > 📸 **[INSERT: Snowflake worksheet showing RAW table counts > 0 across all 7 tables]**
-> *(Run the pipeline health check query and screenshot the results)*
-
 ```sql
 SELECT 'RAW - hosts'    AS layer, COUNT(*) AS row_count FROM AIRBNB_DE.RAW.RAW_HOSTS
 UNION ALL SELECT 'RAW - listings', COUNT(*) FROM AIRBNB_DE.RAW.RAW_LISTINGS
@@ -315,7 +316,7 @@ dbt deps          # install dbt-utils
 dbt seed          # load dim_date (3,288 rows)
 dbt run           # build all 21 models
 dbt snapshot      # build SCD-2 snapshots
-dbt test          # run all 62 tests
+dbt test          # run all 64 tests
 dbt docs generate && dbt docs serve  # view lineage graph
 ```
 
@@ -330,23 +331,25 @@ airflow standalone  # opens at localhost:8080
 
 ---
 
-## 🧪 Running the Tests
+## Run the Tests
 
 ```bash
-dbt test                           # all 62 tests
-dbt test --select "bronze.*"       # bronze layer only
-dbt test --select "silver.*"       # silver layer only
-dbt test --select "gold_*"         # gold layer only
+dbt test                           # all 64 tests
+dbt test --select "bronze.*"       # bronze layer — 14 tests
+dbt test --select "silver.*"       # silver layer — 25 tests
+dbt test --select "gold.*"         # gold layer  — 25 tests
 ```
 
-All 62 tests pass including 3 custom singular tests:
+All 64 tests pass including 5 custom singular tests:
 - `assert_booking_dates_valid` — no completed bookings with check_out before check_in
 - `assert_ratings_in_range` — all ratings on 0–5 scale after Silver normalisation
 - `assert_revenue_positive` — all completed bookings have positive revenue
+- `assert_silver_hosts_no_duplicates` — no duplicate host_ids in Silver (gates snapshot)
+- `assert_silver_listings_no_duplicates` — no duplicate listing_ids in Silver (gates snapshot)
 
 ---
 
-## 📝 Key Technical Decisions
+##  Key Technical Decisions
 
 **All RAW columns are VARCHAR.** If Snowpipe encounters a type mismatch, it silently drops the record. VARCHAR prevents silent data loss — every record lands regardless of how dirty the values are. Type casting happens in Silver using `TRY_TO_DECIMAL` and `TRY_TO_DATE`, which return NULL on failure instead of crashing.
 
@@ -354,23 +357,12 @@ All 62 tests pass including 3 custom singular tests:
 
 **Seeded UUID pools in the generator.** `random.Random(42)` produces identical ID pools on every Lambda invocation, guaranteeing FK overlap between bookings and listings across runs. Without this, near-zero join matches in Gold.
 
+**Dedup CTEs on all Silver models.** The Snowflake snapshot command fails with error 100090 if duplicate rows exist on the unique key. All 7 Silver models include a `ROW_NUMBER() PARTITION BY [unique_key] ORDER BY _loaded_at DESC` dedup CTE. Two singular tests (`assert_silver_hosts_no_duplicates`, `assert_silver_listings_no_duplicates`) run as a gate in the Airflow DAG before the snapshot task — if duplicates exist, the pipeline stops before the snapshot ever runs.
+
 **Separate fact tables for separate business processes.** Bookings, reviews, and listing events have different grains, different metrics, and different analytical questions. Merging them produces an undefined grain and an 80% NULL table.
 
 ---
 
-## 📄 Detailed Documentation
-
-Full technical documentation for each layer — including every error encountered, every fix applied, and every design decision explained:
-
-- [Doc 1: Foundation to Bronze](docs/doc1_foundation_to_bronze.html) — AWS setup, Snowflake, dbt environment, Bronze layer
-- [Doc 2: Silver Layer](docs/doc2_silver_layer.html) — All 10 dirty patterns with complete transformation code
-- [Doc 3: Gold Layer](docs/doc3_gold_layer.html) — Star schema, SCD-2, surrogate keys, OBT, tests
-- [Doc 4: Airflow](docs/doc4_airflow.html) — Orchestration setup, DAG design, verification
-
----
-
-## 👤 Author
+## Author
 
 **Nirmalkumar Thirupallikrishnan Kesavan**
-
-Built as a data engineering portfolio project demonstrating end-to-end streaming pipeline design, data quality engineering, dimensional modelling, and pipeline orchestration.
