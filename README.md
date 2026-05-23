@@ -38,7 +38,6 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 230 records/run
 ### Architecture Diagram
 
 > ![Architecture Diagram](images_visuals/architecture.jpeg)
-> *(Screenshot of the complete AWS → Snowflake → dbt → Airflow flow)*
 
 ---
 
@@ -166,7 +165,6 @@ bronze_run → bronze_test → silver_run → silver_test → snapshot → gold_
 ### Airflow DAG Screenshot
 
 > ![Airlow DAG](images_visuals/airlfow_dag.png)
-> *(screenshot the Graph tab)*
 
 ---
 
@@ -175,7 +173,6 @@ bronze_run → bronze_test → silver_run → silver_test → snapshot → gold_
 The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold — 21 models, all dependencies tracked automatically.
 
 > 📸 ![Dbt Lineage Graph](images_visuals/dbt_lineage_graph.png)
-> *(Run `dbt docs generate && dbt docs serve`, click the graph icon bottom-right, screenshot with "All selected")*
 
 ---
 
@@ -197,69 +194,7 @@ The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold 
 
 
 
-> 📸 **[INSERT: Snowflake worksheet showing RAW table counts > 0 across all 7 tables]**
-```sql
-SELECT 'RAW - hosts'    AS layer, COUNT(*) AS row_count FROM AIRBNB_DE.RAW.RAW_HOSTS
-UNION ALL SELECT 'RAW - listings', COUNT(*) FROM AIRBNB_DE.RAW.RAW_LISTINGS
-UNION ALL SELECT 'RAW - bookings', COUNT(*) FROM AIRBNB_DE.RAW.RAW_BOOKINGS
-UNION ALL SELECT 'RAW - events',   COUNT(*) FROM AIRBNB_DE.RAW.RAW_LISTING_EVENTS;
-```
-
-### 2 — Full medallion architecture populated
-
-> 📸 **[INSERT: Pipeline health check showing data in all layers — RAW through Gold]**
-> *(Screenshot showing RAW, Bronze, Silver, and Gold row counts all > 0)*
-
-### 3 — Dirty data detection working
-
-> 📸 **[INSERT: Snowflake query showing data quality flag counts]**
-
-The pipeline caught and flagged:
-- **71** bookings with reversed check-in/check-out dates (`is_date_valid = FALSE`)
-- **31** bookings where total price didn't reconcile with components (`is_price_mismatch = TRUE`)
-- **16** bookings with wrong pre-computed nights count (`nights_count_corrected = TRUE`)
-- **7** listings with suspicious coordinates (lat/lon swapped)
-- **4** guests with negative trip counts
-- **6** events with invalid position_in_results = 0
-
-### 4 — Conversion funnel working in Gold
-
-> 📸 **[INSERT: Snowflake query showing funnel narrowing correctly from step 1 to step 6]**
-
-```sql
-SELECT funnel_step, event_type_clean, COUNT(*) AS events
-FROM AIRBNB_DE.GOLD.GOLD_FCT_LISTING_EVENTS
-GROUP BY 1, 2 ORDER BY 1;
--- search_impression (79) → view → click → save → booking_start → booking_complete (20)
-```
-
-### 5 — Revenue metrics correct in Gold
-
-> 📸 **[INSERT: gold_fct_bookings query showing revenue_per_night, booking_lead_days, is_last_minute_booking]**
-
-### 6 — Airflow triggered dbt and Snowflake updated
-
-> 📸 **[INSERT: Airflow Runs tab showing scheduled run + successful manual runs]**
-
-The Airflow Runs tab shows:
-- A **scheduled** run that fired automatically at 2026-05-20 20:00:00 — no human trigger
-- Subsequent manual test runs all showing Success
-- Next run pre-scheduled for 2026-05-21 08:00:00
-
-### 7 — SCD-2 snapshot structure correct
-
-> 📸 **[INSERT: Snowflake query showing hosts_snapshot with dbt_valid_from, dbt_valid_to columns]**
-
-```sql
-SELECT host_id, is_superhost, dbt_valid_from, dbt_valid_to, is_current_record
-FROM AIRBNB_DE.SNAPSHOTS.HOSTS_SNAPSHOT
-ORDER BY host_id, dbt_valid_from
-LIMIT 10;
-```
-
----
-
-## 🚀 Setup Instructions
+## Setup Instructions
 
 ### Prerequisites
 
@@ -326,7 +261,7 @@ dbt docs generate && dbt docs serve  # view lineage graph
 airflow db migrate
 mkdir ~/airflow/dags
 cp airflow_dags/airbnb_dbt_pipeline.py ~/airflow/dags/
-airflow standalone  # opens at localhost:8080
+airflow standalone  
 ```
 
 ---
