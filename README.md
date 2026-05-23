@@ -122,36 +122,25 @@ airbnb-streaming-de-project/
 ---
 
 ##  Gold Layer — Star Schema Design
-                         ┌─────────────┐
-                         │  dim_date   │
-                         │  (seed)     │
-                         └──────┬──────┘
-                                │
-┌─────────────┐    ┌────────────▼────────────-┐    ┌─────────────┐
-│  dim_hosts  │    │      fct_bookings        │    │  dim_guests │
-│  (SCD-2)    ├───►│  r    │◄───│             │
-└─────────────┘    └──────────────────────────┘    └─────────────┘
-                                ▲
-┌─────────────┐                 │
-│ dim_listings│─────────────────┘
+
+```
+                    ┌─────────────┐
+                    │  dim_date   │
+                    │             │
+                    └──────┬──────┘
+                           │
+┌─────────────┐     ┌──────▼──────┐     ┌─────────────┐
+│  dim_hosts  │     │fct_bookings │     │  dim_guests │
+│  (SCD-2)    ├────►│             │◄────│             │
+└─────────────┘     └──────┬──────┘     └─────────────┘
+                           │
+┌─────────────┐            │
+│ dim_listings│◄───────────┘
 │  (SCD-2)    │
 └─────────────┘
 
-┌──────────────────────────────────────────────────────┐
-│                    fct_reviews                       │
-│    avg_sub_rating · cleanliness · location · value   │
-└──────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────┐
-│               fct_listing_events                     │
-│    funnel_step 1-6 · search → view → booking         │
-└──────────────────────────────────────────────────────┘
-
-┌──────────────────────────────────────────────────────┐
-│          gold_obt_bookings  (metadata-driven)        │
-│    48 cols · fct_bookings + dim_guests + dim_date    │
-│    Jinja for loop · column list in dbt_project.yml   │
-└──────────────────────────────────────────────────────┘
+Also: fct_reviews  · fct_listing_events · obt_bookings
+```
 
 ### Key design decisions
 
