@@ -4,6 +4,30 @@
 
 ---
 
+
+### Architecture Diagram
+
+> ![Architecture Diagram](images_visuals/architecture.jpeg)
+
+---
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Scheduling | AWS EventBridge | Triggers Lambda every 30 minutes |
+| Compute | AWS Lambda (Python 3.12) | Synthetic data generation and Kinesis publishing |
+| Streaming | AWS Kinesis Data Streams (3) | Durable ordered record storage, 7-day retention |
+| Delivery | AWS Kinesis Firehose (3) | 60s buffering + dynamic S3 partitioning by entity |
+| Storage | AWS S3 | Raw JSON files partitioned by entity and date |
+| Auto-ingest | Snowpipe + SQS | Event-driven loading from S3 into Snowflake RAW |
+| Data Warehouse | Snowflake | RAW → BRONZE → SILVER → GOLD → SNAPSHOTS schemas |
+| Transformation | dbt Core 1.11 | Medallion architecture with incremental models |
+| dbt Adapter | dbt-snowflake | Snowflake-specific SQL generation |
+| Orchestration | Apache Airflow 2.9 | Scheduled DAG with test gates between layers |
+| Python Env | uv | Fast Python + venv management |
+
+---
 ## Architecture
 
 ```
@@ -34,29 +58,6 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 230 records/run
                     ▼
         Star Schema: 3 Dimensions + 1 Date + 3 Facts + 1 OBT
 ```
-
-### Architecture Diagram
-
-> ![Architecture Diagram](images_visuals/architecture.jpeg)
-
----
-
-## Tech Stack
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| Scheduling | AWS EventBridge | Triggers Lambda every 30 minutes |
-| Compute | AWS Lambda (Python 3.12) | Synthetic data generation and Kinesis publishing |
-| Streaming | AWS Kinesis Data Streams (3) | Durable ordered record storage, 7-day retention |
-| Delivery | AWS Kinesis Firehose (3) | 60s buffering + dynamic S3 partitioning by entity |
-| Storage | AWS S3 | Raw JSON files partitioned by entity and date |
-| Auto-ingest | Snowpipe + SQS | Event-driven loading from S3 into Snowflake RAW |
-| Data Warehouse | Snowflake | RAW → BRONZE → SILVER → GOLD → SNAPSHOTS schemas |
-| Transformation | dbt Core 1.11 | Medallion architecture with incremental models |
-| dbt Adapter | dbt-snowflake | Snowflake-specific SQL generation |
-| Orchestration | Apache Airflow 2.9 | Scheduled DAG with test gates between layers |
-| Python Env | uv | Fast Python + venv management |
-
 ---
 
 ## Pipeline Metrics
@@ -178,7 +179,6 @@ The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold 
 
 ## AWS and Snowflake Infrastructure Screenshots
 
-
 ### 1 - AWS Infrastructure
 ![EventBridge Scheduler](images_visuals/eventbridge_scheduler.png)
 ![Lambda ](images_visuals/lambda.png)
@@ -191,7 +191,6 @@ The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold 
 ![Snowflake](images_visuals/Snowflake_schema_tables.png)
 ![Snowflake](images_visuals/Snowflake_schema_tables1.png)
 ![Snowflake](images_visuals/Snowflake_schema_tables.2png)
-
 
 
 ## Setup Instructions
