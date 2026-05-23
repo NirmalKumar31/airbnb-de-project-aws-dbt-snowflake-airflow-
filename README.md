@@ -164,7 +164,7 @@ bronze_run → bronze_test → silver_run → silver_test → snapshot → gold_
 
 ### Airflow DAG Screenshot
 
-> ![Airlow DAG](images_visuals/airlfow_dag.png)
+> ![Airlow DAG](images_visuals/airlfow_dag_graph.png)
 
 ---
 
