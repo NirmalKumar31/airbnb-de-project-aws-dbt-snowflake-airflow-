@@ -122,25 +122,36 @@ airbnb-streaming-de-project/
 ---
 
 ##  Gold Layer — Star Schema Design
-
-```
-                    ┌─────────────┐
-                    │  dim_date   │
-                    │             │
-                    └──────┬──────┘
-                           │
-┌─────────────┐     ┌──────▼──────┐     ┌─────────────┐
-│  dim_hosts  │     │fct_bookings │     │  dim_guests │
-│  (SCD-2)    ├────►│             │◄────│             │
-└─────────────┘     └──────┬──────┘     └─────────────┘
-                           │
-┌─────────────┐            │
-│ dim_listings│◄───────────┘
+                         ┌─────────────┐
+                         │  dim_date   │
+                         │  (seed)     │
+                         └──────┬──────┘
+                                │
+┌─────────────┐    ┌────────────▼────────────-┐    ┌─────────────┐
+│  dim_hosts  │    │      fct_bookings        │    │  dim_guests │
+│  (SCD-2)    ├───►│  r    │◄───│             │
+└─────────────┘    └──────────────────────────┘    └─────────────┘
+                                ▲
+┌─────────────┐                 │
+│ dim_listings│─────────────────┘
 │  (SCD-2)    │
 └─────────────┘
 
-Also: fct_reviews (347 rows) · fct_listing_events (1,200 rows) · obt_bookings (121 rows)
-```
+┌──────────────────────────────────────────────────────┐
+│                    fct_reviews                       │
+│    avg_sub_rating · cleanliness · location · value   │
+└──────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────┐
+│               fct_listing_events                     │
+│    funnel_step 1-6 · search → view → booking         │
+└──────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────┐
+│          gold_obt_bookings  (metadata-driven)        │
+│    48 cols · fct_bookings + dim_guests + dim_date    │
+│    Jinja for loop · column list in dbt_project.yml   │
+└──────────────────────────────────────────────────────┘
 
 ### Key design decisions
 
