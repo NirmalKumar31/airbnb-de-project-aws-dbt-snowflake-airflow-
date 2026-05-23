@@ -114,7 +114,7 @@ airbnb-streaming-de-project/
 ├── airflow_dags/
 │   └── airbnb_dbt_pipeline.py  # 7-task DAG with test gates
 │
-├── profiles_example.yml       # Snowflake connection template (no credentials)
+├── profiles_example.yml       # Snowflake connection template
 └── README.md
 ```
 
@@ -125,12 +125,12 @@ airbnb-streaming-de-project/
 ```
                     ┌─────────────┐
                     │  dim_date   │
-                    │ 3,288 rows  │
+                    │             │
                     └──────┬──────┘
                            │
 ┌─────────────┐     ┌──────▼──────┐     ┌─────────────┐
 │  dim_hosts  │     │fct_bookings │     │  dim_guests │
-│  (SCD-2)    ├────►│  121 rows   │◄────│  384 rows   │
+│  (SCD-2)    ├────►│             │◄────│             │
 └─────────────┘     └──────┬──────┘     └─────────────┘
                            │
 ┌─────────────┐            │
