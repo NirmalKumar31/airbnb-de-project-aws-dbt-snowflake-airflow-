@@ -73,7 +73,6 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 230 records/run
 | Breakdown per run | 50 events · 5 new bookings · 10 booking updates · 30 reviews · 10 listings · 5 hosts · 20 guests · 100 calendar |
 | Kinesis streams | 3 (events: 3 shards · transactions: 2 shards · dimensions: 1 shard) |
 | Firehose delivery streams | 3 (60s buffer · dynamic entity_type partitioning) |
-| Snowpipe latency | < 10 seconds |
 | dbt models | 21 |
 | dbt data quality tests | 64 (Bronze: 14 · Silver: 25 · Gold: 25) |
 | Dirty data patterns designed in | 10 |
@@ -239,7 +238,7 @@ cp profiles_example.yml ~/.dbt/profiles.yml
 CREATE DATABASE AIRBNB_DE;
 CREATE WAREHOUSE AIRBNB_WH WITH WAREHOUSE_SIZE = 'X-SMALL' AUTO_SUSPEND = 60;
 -- Run RAW table DDL and Snowpipe setup
--- See full setup in docs/
+-- See full setup in sql_code file/
 ```
 
 ### 6 — Run dbt pipeline
