@@ -189,7 +189,7 @@ The full lineage from 7 RAW sources through Bronze, Silver, Snapshots, and Gold 
 ### 2 - Snowflake Snowpipe, Schema and Tables
 ![Snowflake](images_visuals/Snowflake_schema_tables.png)
 ![Snowflake](images_visuals/Snowflake_schema_tables1.png)
-![Snowflake](images_visuals/Snowflake_schema_tables.2png)
+![Snowflake](images_visuals/Snowflake_schema_tables2.png)
 
 
 ## Setup Instructions
