@@ -1,0 +1,164 @@
+
+<h2 class="sr-only">Entity relationship diagram for the Airbnb streaming dataset: 7 tables — hosts, listings, guests, bookings, reviews, availability_calendar, listing_events — with foreign key relationships</h2>
+<style>
+#erd svg.erDiagram .divider path { stroke-opacity: 0.5; }
+#erd svg.erDiagram .row-rect-odd path,
+#erd svg.erDiagram .row-rect-odd rect,
+#erd svg.erDiagram .row-rect-even path,
+#erd svg.erDiagram .row-rect-even rect { stroke: none !important; }
+#erd { overflow-x: auto; }
+</style>
+<div id="erd"></div>
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '12px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+  },
+});
+const diagram = `erDiagram
+  HOSTS {
+    uuid host_id PK
+    varchar host_name
+    varchar host_email
+    date host_since
+    varchar host_response_rate
+    varchar host_acceptance_rate
+    varchar is_superhost
+    int host_listings_count
+    varchar host_verifications
+    varchar host_identity_verified
+    timestamp _loaded_at
+  }
+  LISTINGS {
+    uuid listing_id PK
+    uuid host_id FK
+    varchar room_type
+    varchar property_type
+    int accommodates
+    varchar price_per_night
+    varchar amenities
+    int minimum_nights
+    varchar cancellation_policy
+    varchar instant_bookable
+    float review_scores_rating
+    varchar neighborhood
+    float latitude
+    float longitude
+    timestamp _loaded_at
+  }
+  GUESTS {
+    uuid guest_id PK
+    varchar guest_name
+    varchar guest_email
+    varchar guest_phone
+    varchar nationality
+    varchar gender
+    int total_trips
+    float average_rating_as_guest
+    varchar is_banned
+    timestamp _loaded_at
+  }
+  BOOKINGS {
+    varchar booking_id PK
+    uuid listing_id FK
+    uuid guest_id FK
+    uuid host_id FK
+    date check_in_date
+    date check_out_date
+    int nights_count
+    varchar booking_status
+    varchar payment_status
+    float total_price
+    float base_price
+    float cleaning_fee_charged
+    float service_fee
+    float taxes
+    timestamp booked_at
+    timestamp updated_at
+    timestamp _loaded_at
+  }
+  REVIEWS {
+    uuid review_id PK
+    varchar booking_id FK
+    uuid listing_id FK
+    uuid reviewer_id FK
+    uuid reviewee_id FK
+    varchar review_type
+    varchar overall_rating
+    varchar cleanliness_rating
+    varchar accuracy_rating
+    varchar communication_rating
+    varchar checkin_rating
+    varchar location_rating
+    varchar value_rating
+    text review_text
+    timestamp reviewed_at
+    timestamp _loaded_at
+  }
+  AVAILABILITY_CALENDAR {
+    varchar calendar_id PK
+    uuid listing_id FK
+    date calendar_date
+    varchar is_available
+    varchar price_on_date
+    int minimum_nights_override
+    timestamp _loaded_at
+  }
+  LISTING_EVENTS {
+    uuid event_id PK
+    varchar event_type
+    uuid listing_id FK
+    uuid guest_id FK
+    varchar session_id
+    varchar device_type
+    varchar os_version
+    varchar country_code
+    int position_in_results
+    timestamp event_timestamp
+    timestamp _loaded_at
+  }
+  HOSTS ||--o{ LISTINGS : "owns"
+  HOSTS ||--o{ BOOKINGS : "receives"
+  LISTINGS ||--o{ BOOKINGS : "booked via"
+  GUESTS ||--o{ BOOKINGS : "makes"
+  BOOKINGS ||--o| REVIEWS : "generates"
+  LISTINGS ||--o{ REVIEWS : "reviewed in"
+  LISTINGS ||--o{ AVAILABILITY_CALENDAR : "has"
+  LISTINGS ||--o{ LISTING_EVENTS : "generates"
+  GUESTS |o--o{ LISTING_EVENTS : "triggers"
+`;
+const { svg } = await mermaid.render('erd-svg', diagram);
+document.getElementById('erd').innerHTML = svg;
+document.querySelectorAll('#erd svg.erDiagram .node').forEach(node => {
+  const firstPath = node.querySelector('path[d]');
+  if (!firstPath) return;
+  const d = firstPath.getAttribute('d');
+  const nums = d.match(/-?[\d.]+/g)?.map(Number);
+  if (!nums || nums.length < 8) return;
+  const xs = [nums[0], nums[2], nums[4], nums[6]];
+  const ys = [nums[1], nums[3], nums[5], nums[7]];
+  const x = Math.min(...xs), y = Math.min(...ys);
+  const w = Math.max(...xs) - x, h = Math.max(...ys) - y;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('x', x); rect.setAttribute('y', y);
+  rect.setAttribute('width', w); rect.setAttribute('height', h);
+  rect.setAttribute('rx', '8');
+  for (const a of ['fill', 'stroke', 'stroke-width', 'class', 'style']) {
+    if (firstPath.hasAttribute(a)) rect.setAttribute(a, firstPath.getAttribute(a));
+  }
+  firstPath.replaceWith(rect);
+});
+document.querySelectorAll('#erd svg.erDiagram .row-rect-odd path, #erd svg.erDiagram .row-rect-even path').forEach(p => {
+  p.setAttribute('stroke', 'none');
+});
+</script>
