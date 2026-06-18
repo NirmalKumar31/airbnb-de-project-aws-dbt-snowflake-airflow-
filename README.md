@@ -52,7 +52,7 @@ Lambda (Python 3.12) ── Faker + 10 dirty patterns ── 230 records/run
                     ▼
         Snowflake AIRBNB_DE.RAW (7 tables — all VARCHAR)
                     │
-                    ▼  (Airflow DAG every 12 hours)
+                    ▼  (Airflow DAG every 6 hours)
         dbt Bronze → dbt Silver → dbt Snapshot (SCD-2) → dbt Gold
                     │
                     ▼
