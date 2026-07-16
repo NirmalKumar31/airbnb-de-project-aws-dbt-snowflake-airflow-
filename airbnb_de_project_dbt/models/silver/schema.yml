@@ -10,8 +10,9 @@ models:
       - name: is_superhost
         tests:
           - accepted_values:
-              values: [true, false]
-              quote: false
+              arguments:
+                values: [true, false]
+                quote: false
 
   - name: silver_listings
     columns:
@@ -22,13 +23,15 @@ models:
       - name: instant_bookable
         tests:
           - accepted_values:
-              values: [true, false]
-              quote: false
+              arguments:
+                values: [true, false]
+                quote: false
       - name: room_type
         tests:
           - accepted_values:
-              values: ['entire home/apt', 'private room',
-                       'shared room', 'hotel room']
+              arguments:
+                values: ['entire home/apt', 'private room',
+                         'shared room', 'hotel room']
 
   - name: silver_guests
     columns:
@@ -39,7 +42,8 @@ models:
       - name: gender
         tests:
           - accepted_values:
-              values: ['M', 'F', 'Other', 'Unknown']
+              arguments:
+                values: ['M', 'F', 'Other', 'Unknown']
 
   - name: silver_bookings
     columns:
@@ -50,8 +54,30 @@ models:
       - name: booking_status
         tests:
           - accepted_values:
-              values: ['pending', 'confirmed', 'completed',
-                       'cancelled', 'rejected','no_show']
+              arguments:
+                values: ['pending', 'confirmed', 'completed',
+                         'cancelled', 'rejected','no_show']
+      - name: listing_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_listings')
+                field: listing_id
+      - name: host_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_hosts')
+                field: host_id
+      - name: guest_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_guests')
+                field: guest_id
 
   - name: silver_reviews
     columns:
@@ -62,22 +88,41 @@ models:
       - name: is_public
         tests:
           - accepted_values:
-              values: [true, false]
-              quote: false
+              arguments:
+                values: [true, false]
+                quote: false
+      - name: review_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['guest_to_host', 'host_to_guest']
+      - name: listing_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_listings')
+                field: listing_id
 
   - name: silver_availability_calendar
     columns:
       - name: listing_id
         tests:
           - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_listings')
+                field: listing_id
       - name: calendar_date
         tests:
           - not_null
       - name: is_available
         tests:
           - accepted_values:
-              values: [true, false]
-              quote: false
+              arguments:
+                values: [true, false]
+                quote: false
 
   - name: silver_listing_events
     columns:
@@ -88,5 +133,23 @@ models:
       - name: event_type_clean
         tests:
           - accepted_values:
-              values: ['view', 'click', 'save', 'booking_start',
-                       'booking_complete', 'search_impression']
+              arguments:
+                values: ['view', 'click', 'save', 'booking_start',
+                         'booking_complete', 'search_impression']
+      - name: listing_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_listings')
+                field: listing_id
+
+  - name: quarantine_invalid_bookings
+    columns:
+      - name: booking_id_clean
+        tests:
+          - not_null
+          - unique
+      - name: quarantine_reason
+        tests:
+          - not_null

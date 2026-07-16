@@ -10,7 +10,7 @@ WITH source AS (
     SELECT * FROM {{ ref('bronze_guests') }}
 
     {% if is_incremental() %}
-    WHERE _loaded_at > (
+    WHERE _loaded_at >= (
         SELECT COALESCE(MAX(_loaded_at), '2000-01-01'::TIMESTAMP_TZ)
         FROM {{ this }}
     )
@@ -34,7 +34,12 @@ cleaned AS (
         -- All normalised to E.164: +1XXXXXXXXXX
         CASE
             WHEN guest_phone IS NULL THEN NULL
-            ELSE '+1' || REGEXP_REPLACE(guest_phone, '[^0-9]', '')
+            WHEN LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '')) = 10
+                THEN '+1' || REGEXP_REPLACE(guest_phone, '[^0-9]', '')
+            WHEN LENGTH(REGEXP_REPLACE(guest_phone, '[^0-9]', '')) = 11
+             AND LEFT(REGEXP_REPLACE(guest_phone, '[^0-9]', ''), 1) = '1'
+                THEN '+' || REGEXP_REPLACE(guest_phone, '[^0-9]', '')
+            ELSE NULL
         END                                   AS guest_phone,
 
         --  Dates 
@@ -119,7 +124,7 @@ deduped AS (
     SELECT *,
         ROW_NUMBER() OVER (
             PARTITION BY guest_id
-            ORDER BY _loaded_at DESC
+            ORDER BY TRY_TO_TIMESTAMP_TZ(_stream_timestamp) DESC, _loaded_at DESC
         ) AS _row_num
     FROM cleaned
 )

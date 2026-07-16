@@ -93,9 +93,8 @@ LIST @airbnb_raw_stage/;
 -- ════════════════════════════════════════════════════════════
 --  SECTION 5: RAW TABLES
 -- ════════════════════════════════════════════════════════════
-select * from raw_hosts
 -- ── Table 01: raw_hosts ──────────────────────────────────────
-CREATE OR REPLACE TABLE raw_hosts (
+CREATE TABLE IF NOT EXISTS raw_hosts (
     -- Natural key
     host_id                  VARCHAR,
     -- Attributes (all VARCHAR — type casting in Silver)
@@ -118,7 +117,7 @@ CREATE OR REPLACE TABLE raw_hosts (
 );
 
 -- ── Table 02: raw_listings ───────────────────────────────────
-CREATE OR REPLACE TABLE raw_listings (
+CREATE TABLE IF NOT EXISTS raw_listings (
     listing_id                    VARCHAR,
     host_id                       VARCHAR,
     listing_name                  VARCHAR,
@@ -155,7 +154,7 @@ CREATE OR REPLACE TABLE raw_listings (
 );
 
 -- ── Table 03: raw_guests ─────────────────────────────────────
-CREATE OR REPLACE TABLE raw_guests (
+CREATE TABLE IF NOT EXISTS raw_guests (
     guest_id                VARCHAR,
     guest_name              VARCHAR,
     guest_email             VARCHAR,
@@ -175,7 +174,7 @@ CREATE OR REPLACE TABLE raw_guests (
 );
 
 -- ── Table 04: raw_bookings ───────────────────────────────────
-CREATE OR REPLACE TABLE raw_bookings (
+CREATE TABLE IF NOT EXISTS raw_bookings (
     booking_id           VARCHAR,   -- dirty: BKG-XXXXXX / BKGXXXXXX / bkg_XXXXXX
     listing_id           VARCHAR,
     guest_id             VARCHAR,
@@ -206,7 +205,7 @@ CREATE OR REPLACE TABLE raw_bookings (
 );
 
 -- ── Table 05: raw_reviews ────────────────────────────────────
-CREATE OR REPLACE TABLE raw_reviews (
+CREATE TABLE IF NOT EXISTS raw_reviews (
     review_id              VARCHAR,
     booking_id             VARCHAR,
     listing_id             VARCHAR,
@@ -230,7 +229,7 @@ CREATE OR REPLACE TABLE raw_reviews (
 );
 
 -- ── Table 06: raw_availability_calendar ─────────────────────
-CREATE OR REPLACE TABLE raw_availability_calendar (
+CREATE TABLE IF NOT EXISTS raw_availability_calendar (
     calendar_id              VARCHAR,  -- dirty: CAL-{id}-{date} / cal_{id}_{date} / UUID
     listing_id               VARCHAR,
     calendar_date            VARCHAR,
@@ -245,7 +244,7 @@ CREATE OR REPLACE TABLE raw_availability_calendar (
 );
 
 -- ── Table 07: raw_listing_events ─────────────────────────────
-CREATE OR REPLACE TABLE raw_listing_events (
+CREATE TABLE IF NOT EXISTS raw_listing_events (
     event_id             VARCHAR,
     event_type           VARCHAR,   -- dirty: view/View/VIEW/page_view/favourite/favorite/etc
     listing_id           VARCHAR,
@@ -272,8 +271,6 @@ SHOW TABLES IN SCHEMA AIRBNB_DE.RAW;
 --  SECTION 6: SNOWPIPES
 -- ════════════════════════════════════════════════════════════
 SELECT COUNT(*) FROM AIRBNB_DE.RAW.raw_listing_events;
-select * from raw_hosts
-
 -- ── Pipe 01: hosts ───────────────────────────────────────────
 CREATE OR REPLACE PIPE raw_hosts_pipe
     AUTO_INGEST = TRUE

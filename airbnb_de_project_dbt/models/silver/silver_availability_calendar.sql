@@ -10,7 +10,7 @@ WITH source AS (
     SELECT * FROM {{ ref('bronze_availability_calendar') }}
 
     {% if is_incremental() %}
-    WHERE _loaded_at > (
+    WHERE _loaded_at >= (
         SELECT COALESCE(MAX(_loaded_at), '2000-01-01'::TIMESTAMP_TZ)
         FROM {{ this }}
     )
@@ -64,7 +64,7 @@ deduped AS (
     SELECT *,
         ROW_NUMBER() OVER (
             PARTITION BY listing_id, calendar_date
-            ORDER BY _loaded_at DESC
+            ORDER BY TRY_TO_TIMESTAMP_TZ(_stream_timestamp) DESC, _loaded_at DESC
         ) AS _row_num
     FROM cleaned
 )

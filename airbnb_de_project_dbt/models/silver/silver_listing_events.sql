@@ -4,7 +4,7 @@
     on_schema_change = 'sync_all_columns'
 ) }}
 
--- listing_events is append-only and high volume (~12,000/hr)
+-- listing_events is append-only and can become the highest-volume source.
 -- No merge needed — events never change after they are created
 -- The incremental filter is especially important here
 
@@ -13,7 +13,7 @@ WITH source AS (
     SELECT * FROM {{ ref('bronze_listing_events') }}
 
     {% if is_incremental() %}
-    WHERE _loaded_at > (
+    WHERE _loaded_at >= (
         SELECT COALESCE(MAX(_loaded_at), '2000-01-01'::TIMESTAMP_TZ)
         FROM {{ this }}
     )
@@ -48,7 +48,7 @@ cleaned AS (
             'booking_confirmed','bookingconfirmed')   THEN 'booking_complete'
             WHEN LOWER(event_type)
                 IN ('search_impression','searchimpression',
-            'impression','page_view')                 THEN 'search_impression'
+            'impression')                             THEN 'search_impression'
             ELSE LOWER(event_type)
         END       AS event_type_clean,
 
@@ -59,7 +59,7 @@ cleaned AS (
                 'favourite','favorite','save','wishlist_add',
                 'booking_start','booking_complete','booking_confirmed',
                 'searchimpression','search_impression','impression',
-                'bookingstart','bookingcomplete','searchimpression','bookingstart'
+                'bookingstart','bookingcomplete'
             ) THEN TRUE
             ELSE FALSE
         END                                   AS is_event_type_mapped,
@@ -144,7 +144,7 @@ deduped AS (
     SELECT *,
         ROW_NUMBER() OVER (
             PARTITION BY event_id
-            ORDER BY _loaded_at DESC
+            ORDER BY TRY_TO_TIMESTAMP_TZ(_stream_timestamp) DESC, _loaded_at DESC
         ) AS _row_num
     FROM cleaned
 )

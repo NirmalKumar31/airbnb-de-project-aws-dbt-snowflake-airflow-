@@ -23,10 +23,10 @@ listing_at_booking AS (
         instant_bookable     AS instant_bookable_at_booking,
         accommodates,
         amenity_count,
+        effective_valid_from,
         dbt_valid_from,
         dbt_valid_to
     FROM {{ ref('gold_dim_listings') }}
-    WHERE is_current_record = TRUE
 
 ),
 
@@ -39,10 +39,10 @@ host_at_booking AS (
         is_superhost         AS is_superhost_at_booking,
         host_response_rate   AS response_rate_at_booking,
         host_listings_count  AS listings_count_at_booking,
+        effective_valid_from,
         dbt_valid_from,
         dbt_valid_to
     FROM {{ ref('gold_dim_hosts') }}
-    WHERE is_current_record = TRUE
 
 ),
 
@@ -90,6 +90,13 @@ SELECT
     b.service_fee,
     b.taxes,
     b.calculated_total_price,
+    b.calculated_total_price                  AS gross_booking_value,
+    CASE
+        WHEN b.booking_status = 'completed'
+         AND b.payment_status = 'paid'
+            THEN b.calculated_total_price
+        ELSE 0
+    END                                       AS recognized_revenue,
 
     -- Revenue per night — key analytical metric
     ROUND(
@@ -142,12 +149,14 @@ FROM bookings b
 -- SCD-2 range join to listing version active at booking time
 LEFT JOIN listing_at_booking l
     ON  b.listing_id  = l.listing_id
-    
+    AND b.booked_at >= l.effective_valid_from
+    AND b.booked_at < COALESCE(l.dbt_valid_to, '9999-12-31'::TIMESTAMP_TZ)
 
 -- SCD-2 range join to host version active at booking time
 LEFT JOIN host_at_booking h
     ON  b.host_id    = h.host_id
-    
+    AND b.booked_at >= h.effective_valid_from
+    AND b.booked_at < COALESCE(h.dbt_valid_to, '9999-12-31'::TIMESTAMP_TZ)
 
 -- Current state join for guests
 LEFT JOIN {{ ref('gold_dim_guests') }} g

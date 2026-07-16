@@ -3,10 +3,10 @@
 
 SELECT review_id
 FROM {{ ref('silver_reviews') }}
-WHERE overall_rating > 5
-   OR cleanliness_rating > 5
-   OR accuracy_rating > 5
-   OR communication_rating > 5
-   OR checkin_rating > 5
-   OR location_rating > 5
-   OR value_rating > 5
+WHERE overall_rating NOT BETWEEN 0 AND 5
+   OR cleanliness_rating NOT BETWEEN 0 AND 5
+   OR accuracy_rating NOT BETWEEN 0 AND 5
+   OR communication_rating NOT BETWEEN 0 AND 5
+   OR checkin_rating NOT BETWEEN 0 AND 5
+   OR location_rating NOT BETWEEN 0 AND 5
+   OR value_rating NOT BETWEEN 0 AND 5

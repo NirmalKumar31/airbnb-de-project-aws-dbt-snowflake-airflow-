@@ -4,4 +4,4 @@
 SELECT booking_id_clean
 FROM {{ ref('gold_fct_bookings') }}
 WHERE booking_status = 'completed'
-  AND calculated_total_price <= 0
+  AND (recognized_revenue IS NULL OR recognized_revenue <= 0)

@@ -1,10 +1,20 @@
 [project]
 name = "airbnb-de-project"
 version = "0.1.0"
-description = "Add your description here"
+description = "AWS-to-Snowflake Airbnb streaming data engineering pipeline"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "boto3>=1.35",
     "dbt-core>=1.11.10",
     "dbt-snowflake>=1.11.5",
+    "faker>=30",
+]
+
+[dependency-groups]
+orchestration = [
+    "apache-airflow>=2.9,<3.0",
+]
+test = [
+    "pytest>=8",
 ]

@@ -7,6 +7,7 @@ SELECT
     l.listing_key,
     h.host_key,
     g.guest_key,
+    b.booking_key,
     d.date_key                            AS reviewed_date_key,
 
     -- ── Review identifiers ────────────────────────────────────
@@ -63,20 +64,29 @@ SELECT
 
 FROM {{ ref('silver_reviews') }} r
 
+LEFT JOIN {{ ref('gold_fct_bookings') }} b
+    ON r.booking_id_clean = b.booking_id_clean
+
 -- Reviews use current listing state (not SCD-2 range)
 -- because what matters is the listing that exists today
 LEFT JOIN {{ ref('gold_dim_listings') }} l
     ON  r.listing_id = l.listing_id
     AND l.is_current_record = TRUE
 
--- Host who received the review (current state)
-LEFT JOIN {{ ref('gold_dim_hosts') }} h
-    ON  r.reviewee_id = h.host_id
+    -- Host participant; role depends on review direction.
+    LEFT JOIN {{ ref('gold_dim_hosts') }} h
+    ON  (
+            (r.review_type = 'guest_to_host' AND r.reviewee_id = h.host_id)
+         OR (r.review_type = 'host_to_guest' AND r.reviewer_id = h.host_id)
+        )
     AND h.is_current_record = TRUE
 
--- Guest who wrote the review
-LEFT JOIN {{ ref('gold_dim_guests') }} g
-    ON r.reviewer_id = g.guest_id
+    -- Guest participant; role depends on review direction.
+    LEFT JOIN {{ ref('gold_dim_guests') }} g
+    ON (
+           (r.review_type = 'guest_to_host' AND r.reviewer_id = g.guest_id)
+        OR (r.review_type = 'host_to_guest' AND r.reviewee_id = g.guest_id)
+       )
 
 -- Date dimension
 LEFT JOIN {{ ref('dim_date') }} d

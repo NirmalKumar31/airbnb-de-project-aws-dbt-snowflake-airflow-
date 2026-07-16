@@ -23,6 +23,12 @@ SELECT
     dbt_valid_to,
     dbt_updated_at,
 
+    CASE
+        WHEN ROW_NUMBER() OVER (PARTITION BY host_id ORDER BY dbt_valid_from) = 1
+            THEN '1900-01-01'::TIMESTAMP_TZ
+        ELSE dbt_valid_from
+    END AS effective_valid_from,
+
     -- Derived: current record has no end date
     CASE WHEN dbt_valid_to IS NULL THEN TRUE ELSE FALSE END AS is_current_record
 

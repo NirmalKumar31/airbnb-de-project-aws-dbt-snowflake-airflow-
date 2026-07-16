@@ -16,22 +16,36 @@ Usage:
 """
 
 import json
+import os
 import random
 import uuid
 import sys
 import logging
 import argparse
-from datetime import datetime, timedelta, date
+import time
+from datetime import datetime, timedelta, date, timezone
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def iso_z(value: datetime) -> str:
+    return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def utc_now_iso() -> str:
+    return iso_z(utc_now())
+
 # ── Stream names ──────────────────────────────────────────────────────────────
-STREAM_EVENTS       = "airbnb-events-stream"
-STREAM_TRANSACTIONS = "airbnb-transactions-stream"
-STREAM_DIMENSIONS   = "airbnb-dimensions-stream"
-AWS_REGION          = "us-east-1"
+STREAM_EVENTS       = os.getenv("STREAM_EVENTS", "airbnb-events-stream")
+STREAM_TRANSACTIONS = os.getenv("STREAM_TRANSACTIONS", "airbnb-transactions-stream")
+STREAM_DIMENSIONS   = os.getenv("STREAM_DIMENSIONS", "airbnb-dimensions-stream")
+AWS_REGION          = os.getenv("AWS_REGION", "us-east-1")
 
 # ── Lazy Kinesis client (only imported when actually publishing) ───────────────
 _kinesis = None
@@ -68,10 +82,9 @@ def dirty_price(min_v: float, max_v: float, nullable: bool = False) -> Optional[
     else:
         return str(int(val))
 
-def dirty_uid() -> str:
-    """UUID in one of 3 formats: standard / no-hyphens / UPPERCASE"""
-    u = uuid.uuid4()
-    return random.choice([str(u), str(u).replace("-", ""), str(u).upper()])
+def dirty_uid(value: str) -> str:
+    """Return a differently formatted representation of the same UUID."""
+    return random.choice([value, value.replace("-", ""), value.upper()])
 
 def dirty_date(d: date) -> str:
     """Date in one of 3 formats: ISO / US / natural language"""
@@ -150,6 +163,17 @@ HOST_IDS    = [_seeded_uuid() for _ in range(50)]
 LISTING_IDS = [_seeded_uuid() for _ in range(200)]
 GUEST_IDS   = [_seeded_uuid() for _ in range(500)]
 
+# Stable relationships make every generated table part of one coherent business
+# system. A listing always belongs to the same host, and a booking/review can
+# derive its host from its listing instead of choosing an unrelated host.
+LISTING_TO_HOST = {
+    listing_id: HOST_IDS[(index // 2) % len(HOST_IDS)]
+    for index, listing_id in enumerate(LISTING_IDS)
+}
+ACTIVE_LISTING_IDS = LISTING_IDS[:10]
+ACTIVE_HOST_IDS = sorted({LISTING_TO_HOST[listing_id] for listing_id in ACTIVE_LISTING_IDS})
+ACTIVE_GUEST_IDS = GUEST_IDS[:20]
+
 # Fixed pool of 300 booking base numbers for the status-update path.
 # The same logical booking (e.g. base number 100042) can arrive across
 # batches as "BKG-100042", "BKG100042", or "bkg_100042" — Silver must
@@ -190,10 +214,10 @@ VERIFICATION_OPTIONS = ["email", "phone", "government_id", "work_email", "facebo
 #  ENTITY GENERATORS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def generate_host() -> dict:
-    host_id = random.choice(HOST_IDS)
+def generate_host(host_id: Optional[str] = None) -> dict:
+    host_id = host_id or random.choice(HOST_IDS)
     if random.random() < 0.30:
-        host_id = dirty_uid()
+        host_id = dirty_uid(host_id)
 
     # Name casing: 60% proper, 20% ALL CAPS, 20% all lower
     name = fake.name()
@@ -224,18 +248,19 @@ def generate_host() -> dict:
             random.sample(VERIFICATION_OPTIONS, random.randint(1, 4))
         ),
         "host_identity_verified": dirty_bool(),
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
-def generate_listing() -> dict:
-    listing_id = random.choice(LISTING_IDS)
+def generate_listing(listing_id: Optional[str] = None) -> dict:
+    canonical_listing_id = listing_id or random.choice(LISTING_IDS)
+    listing_id = canonical_listing_id
     if random.random() < 0.30:
-        listing_id = dirty_uid()
+        listing_id = dirty_uid(listing_id)
 
-    host_id = random.choice(HOST_IDS)
+    host_id = LISTING_TO_HOST[canonical_listing_id]
     if random.random() < 0.30:
-        host_id = dirty_uid()
+        host_id = dirty_uid(host_id)
 
     # Coordinate swap: 5% chance (latitude and longitude reversed)
     lat, lon = random.choice(BOSTON_COORDS)
@@ -308,14 +333,14 @@ def generate_listing() -> dict:
             dirty_date(fake.date_between(start_date="-2y", end_date="today"))
             if random.random() > 0.10 else None
         ),
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
-def generate_guest() -> dict:
-    guest_id = random.choice(GUEST_IDS)
+def generate_guest(guest_id: Optional[str] = None) -> dict:
+    guest_id = guest_id or random.choice(GUEST_IDS)
     if random.random() < 0.30:
-        guest_id = dirty_uid()
+        guest_id = dirty_uid(guest_id)
 
     # Phone in 4 different formats
     digits = "".join(filter(str.isdigit, fake.phone_number()))[-10:]
@@ -367,102 +392,133 @@ def generate_guest() -> dict:
             dirty_bool() if random.random() < 0.02
             else random.choice(["f", "False", "0", "no", "N"])
         ),
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
-def generate_booking(is_new: bool = True) -> dict:
+def generate_booking(
+    is_new: bool = True,
+    booking_num: Optional[int] = None,
+    status: Optional[str] = None,
+) -> dict:
     if is_new:
-        # Fresh booking — numbers ≥ 200000 never collide with the update pool
-        booking_id = _booking_id(random.randint(200000, 999999))
-        status = random.choice(["pending", "confirmed"])
+        booking_num = booking_num or random.randint(200000, 999999)
+        booking_id = _booking_id(booking_num)
+        status = status or random.choice(["pending", "confirmed"])
     else:
         # Status update: reuse a booking from the fixed pool.
         # The same logical booking (e.g. base 100042) may arrive this time as
         # "BKG-100042", next time as "BKG100042", next as "bkg_100042".
         # Silver normalisation must reconcile all three before the MERGE runs.
-        booking_id = _booking_id(random.choice(_BOOKING_BASE_NUMS))
-        status = random.choice(["confirmed", "completed", "cancelled", "no_show"])
+        booking_num = booking_num or random.choice(_BOOKING_BASE_NUMS)
+        booking_id = _booking_id(booking_num)
+        status = status or random.choice(["confirmed", "completed", "cancelled", "no_show"])
 
-    check_in = fake.date_between(start_date="-30d", end_date="+90d")
-    nights = random.randint(1, 14)
+    # The same booking number always resolves to the same listing, guest, and
+    # host. Status updates therefore preserve the booking's business identity.
+    listing_id = ACTIVE_LISTING_IDS[booking_num % len(ACTIVE_LISTING_IDS)]
+    guest_id = ACTIVE_GUEST_IDS[booking_num % len(ACTIVE_GUEST_IDS)]
+    host_id = LISTING_TO_HOST[listing_id]
+    booking_rng = random.Random(booking_num)
+
+    booked_at = datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(days=booking_num % 120)
+    check_in = booked_at.date() + timedelta(days=7 + booking_num % 45)
+    nights = booking_rng.randint(1, 14)
     check_out = check_in + timedelta(days=nights)
 
     # 5% chance of reversed dates (check_out < check_in)
-    if random.random() < 0.05:
+    if booking_num % 20 == 0:
         check_in, check_out = check_out, check_in
 
     # nights_count: pre-computed but 15% chance it's wrong
-    nights_count = nights + (random.choice([-1, 1, 2]) if random.random() < 0.15 else 0)
+    nights_count = nights + (booking_rng.choice([-1, 1, 2]) if booking_num % 7 == 0 else 0)
 
     # Price components
-    nightly = random.uniform(50, 500)
+    nightly = booking_rng.uniform(50, 500)
     true_nights = max(abs((check_out - check_in).days), 1)
     base_price      = round(nightly * true_nights, 2)
-    cleaning_fee    = round(random.uniform(20, 150), 2)
+    cleaning_fee    = round(booking_rng.uniform(20, 150), 2)
     service_fee     = round(base_price * 0.12, 2)
     taxes           = round(base_price * 0.08, 2)
     real_total      = base_price + cleaning_fee + service_fee + taxes
 
     # 20% chance of total_price mismatch (pre-computed wrong value)
     total_price = (
-        round(real_total + random.uniform(-50, 50), 2)
-        if random.random() < 0.20 else real_total
+        round(real_total + booking_rng.uniform(-50, 50), 2)
+        if booking_num % 5 == 0 else real_total
     )
 
-    num_adults   = random.randint(1, 4)
-    num_children = random.randint(0, 3)
-    if random.random() < 0.03:
+    num_adults   = booking_rng.randint(1, 4)
+    num_children = booking_rng.randint(0, 3)
+    if booking_num % 33 == 0:
         num_children = -1  # invalid — occasionally produced by source
 
     # Status casing chaos (status already set above by is_new branch)
     status_str = random.choice([status, status.capitalize(), status.upper()])
+    payment_status = {
+        "pending": "pending",
+        "confirmed": "paid",
+        "completed": "paid",
+        "cancelled": "refunded",
+        "no_show": "paid",
+    }[status]
 
-    booked_at   = datetime.utcnow() - timedelta(days=random.randint(0, 60))
-    updated_at  = booked_at + timedelta(hours=random.randint(0, 72))
+    status_order = {"pending": 0, "confirmed": 1, "completed": 2, "cancelled": 2, "no_show": 2}
+    updated_at = booked_at + timedelta(hours=1 + 24 * status_order.get(status, 0))
 
     return {
         "entity_type": "booking",
         "booking_id": booking_id,
-        "listing_id": random.choice(LISTING_IDS),
-        "guest_id": random.choice(GUEST_IDS),
-        "host_id": random.choice(HOST_IDS),
+        "listing_id": dirty_uid(listing_id) if random.random() < 0.20 else listing_id,
+        "guest_id": dirty_uid(guest_id) if random.random() < 0.20 else guest_id,
+        "host_id": dirty_uid(host_id) if random.random() < 0.20 else host_id,
         "check_in_date": dirty_date(check_in),
         "check_out_date": dirty_date(check_out),
         "nights_count": nights_count,
         "num_guests": num_adults + max(0, num_children) + random.randint(0, 2),
         "num_adults": num_adults,
         "num_children": num_children,
-        "num_infants": random.randint(0, 2),
+        "num_infants": booking_rng.randint(0, 2),
         "booking_status": status_str,
-        "payment_status": random.choice(["pending", "paid", "Paid", "PAID", "refunded", "failed"]),
+        "payment_status": random.choice([
+            payment_status,
+            payment_status.capitalize(),
+            payment_status.upper(),
+        ]),
         "total_price": total_price,
         "base_price": base_price,
         "cleaning_fee_charged": cleaning_fee,
         "service_fee": service_fee,
         "taxes": taxes,
-        "special_requests": fake.sentence() if random.random() < 0.20 else None,
-        "booked_at": booked_at.isoformat() + "Z",
-        "updated_at": updated_at.isoformat() + "Z",
+        "special_requests": f"Request for booking {booking_num}" if booking_num % 5 == 0 else None,
+        "booked_at": iso_z(booked_at),
+        "updated_at": iso_z(updated_at),
         "source_platform": random.choice([
             "web", "Web", "WEB", "mobile_ios", "Mobile iOS", "mobile_android", "api"
         ]),
-        "promo_code": f"SAVE{random.randint(10, 30)}" if random.random() < 0.15 else None,
+        "promo_code": f"SAVE{10 + booking_num % 21}" if booking_num % 7 == 0 else None,
         "cancellation_reason": (
             random.choice(["change_of_plans", "found_better_option", "emergency"])
             if status == "cancelled" else None
         ),
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
-def generate_review() -> dict:
-    # Booking ID format matches generate_booking patterns
-    num = random.randint(100000, 999999)
-    id_fmt = random.choice(["dash", "no_sep", "lower_under"])
-    booking_id = f"BKG-{num}" if id_fmt == "dash" else (
-        f"BKG{num}" if id_fmt == "no_sep" else f"bkg_{num}"
+def generate_review(booking: Optional[dict] = None) -> dict:
+    """Generate a review linked to a real booking and valid participant roles."""
+    booking = booking or generate_booking(
+        is_new=False,
+        booking_num=random.choice(_BOOKING_BASE_NUMS),
+        status="completed",
     )
+    review_type = random.choice(["guest_to_host", "host_to_guest"])
+    if review_type == "guest_to_host":
+        reviewer_id = booking["guest_id"]
+        reviewee_id = booking["host_id"]
+    else:
+        reviewer_id = booking["host_id"]
+        reviewee_id = booking["guest_id"]
 
     # Review text dirty patterns: empty str / whitespace / punctuation / N/A / real text
     text_options = [
@@ -477,12 +533,12 @@ def generate_review() -> dict:
 
     return {
         "entity_type": "review",
-        "review_id": dirty_uid(),
-        "booking_id": booking_id,
-        "listing_id": random.choice(LISTING_IDS),
-        "reviewer_id": random.choice(GUEST_IDS + HOST_IDS),
-        "reviewee_id": random.choice(HOST_IDS + GUEST_IDS),
-        "review_type": random.choice(["guest_to_host", "host_to_guest"]),
+        "review_id": dirty_uid(str(uuid.uuid4())),
+        "booking_id": booking["booking_id"],
+        "listing_id": booking["listing_id"],
+        "reviewer_id": reviewer_id,
+        "reviewee_id": reviewee_id,
+        "review_type": review_type,
         "overall_rating": dirty_rating(),
         "cleanliness_rating": dirty_rating(),
         "accuracy_rating": dirty_rating(),
@@ -493,17 +549,17 @@ def generate_review() -> dict:
         "review_text": review_text,
         "response_text": fake.sentence() if random.random() < 0.20 else None,
         "is_public": dirty_bool(),
-        "reviewed_at": (
-            datetime.utcnow() - timedelta(days=random.randint(0, 30))
-        ).isoformat() + "Z",
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "reviewed_at": iso_z(
+            utc_now() - timedelta(days=random.randint(0, 30))
+        ),
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
 def generate_calendar_entry() -> dict:
-    listing_id = random.choice(LISTING_IDS)
+    listing_id = random.choice(ACTIVE_LISTING_IDS)
     if random.random() < 0.30:
-        listing_id = dirty_uid()
+        listing_id = dirty_uid(listing_id)
 
     cal_date = fake.date_between(start_date="today", end_date="+365d")
 
@@ -532,11 +588,17 @@ def generate_calendar_entry() -> dict:
         "minimum_nights_override": random.randint(1, 7) if random.random() < 0.10 else None,
         "maximum_nights_override": random.randint(7, 30) if random.random() < 0.05 else None,
         "notes": fake.sentence() if random.random() < 0.05 else None,
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
-def generate_listing_event() -> dict:
+def generate_listing_event(
+    session_id: Optional[str] = None,
+    canonical_event: Optional[str] = None,
+    listing_id: Optional[str] = None,
+    guest_id: Optional[str] = None,
+    event_timestamp: Optional[datetime] = None,
+) -> dict:
     # event_type: casing chaos + synonym chaos
     canonical_map = {
         "view":             ["view", "View", "VIEW", "page_view"],
@@ -546,7 +608,7 @@ def generate_listing_event() -> dict:
         "booking_complete": ["booking_complete", "BookingComplete", "booking_confirmed"],
         "search_impression":["SearchImpression", "search_impression", "impression"],
     }
-    canonical = random.choices(
+    canonical = canonical_event or random.choices(
         list(canonical_map.keys()),
         weights=[35, 20, 15, 10, 5, 15],
     )[0]
@@ -579,15 +641,19 @@ def generate_listing_event() -> dict:
         if random.random() < 0.05:
             position = 0  # invalid — Silver will null this
 
-    guest_id = random.choice(GUEST_IDS) if random.random() > 0.30 else None  # 30% anonymous
+    if guest_id is None and session_id is None:
+        guest_id = random.choice(GUEST_IDS) if random.random() > 0.30 else None
+    listing_id = listing_id or random.choice(LISTING_IDS)
+    session_id = session_id or str(uuid.uuid4())
+    event_timestamp = event_timestamp or utc_now()
 
     return {
         "entity_type": "listing_event",
-        "event_id": dirty_uid(),
+        "event_id": dirty_uid(str(uuid.uuid4())),
         "event_type": event_type,
-        "listing_id": random.choice(LISTING_IDS),
+        "listing_id": listing_id,
         "guest_id": guest_id,
-        "session_id": str(uuid.uuid4()),
+        "session_id": session_id,
         "device_type": device_type,
         "os_version": os_version,
         "browser": random.choice(["Chrome", "Safari", "Firefox", "Edge", None]),
@@ -597,8 +663,8 @@ def generate_listing_event() -> dict:
         ),
         "price_shown": dirty_price(30, 600, nullable=True),
         "position_in_results": position,
-        "event_timestamp": datetime.utcnow().isoformat() + "Z",
-        "_stream_timestamp": datetime.utcnow().isoformat() + "Z",
+        "event_timestamp": iso_z(event_timestamp),
+        "_stream_timestamp": utc_now_iso(),
     }
 
 
@@ -626,13 +692,28 @@ def publish(stream_name: str, records: list) -> None:
     ]
 
     for i in range(0, len(entries), 500):
-        batch = entries[i : i + 500]
-        response = kinesis().put_records(Records=batch, StreamName=stream_name)
-        failed = response.get("FailedRecordCount", 0)
-        if failed:
-            log.warning(f"  ⚠  {failed}/{len(batch)} records failed on {stream_name}")
+        pending = entries[i : i + 500]
+        for attempt in range(1, 4):
+            response = kinesis().put_records(Records=pending, StreamName=stream_name)
+            failed_entries = [
+                entry
+                for entry, result in zip(pending, response.get("Records", []))
+                if result.get("ErrorCode")
+            ]
+            if not failed_entries:
+                log.info(f"  ✓  {len(pending):>4} records → {stream_name}")
+                break
+            log.warning(
+                "  ⚠  %s/%s records failed on %s (attempt %s/3)",
+                len(failed_entries), len(pending), stream_name, attempt,
+            )
+            pending = failed_entries
+            if attempt < 3:
+                time.sleep(2 ** (attempt - 1))
         else:
-            log.info(f"  ✓  {len(batch):>4} records → {stream_name}")
+            raise RuntimeError(
+                f"Kinesis PutRecords failed for {len(pending)} records on {stream_name}"
+            )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -640,21 +721,57 @@ def publish(stream_name: str, records: list) -> None:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def run_events_batch(count: int = 50) -> None:
-    """High-frequency: 50 listing_events every 15 seconds ≈ 12,000 / hour."""
-    records = [generate_listing_event() for _ in range(count)]
+    """Generate ordered, multi-event sessions so funnel analysis is meaningful."""
+    records = []
+    while len(records) < count:
+        session_id = str(uuid.uuid4())
+        listing_id = random.choice(ACTIVE_LISTING_IDS)
+        guest_id = random.choice(ACTIVE_GUEST_IDS) if random.random() > 0.30 else None
+        started_at = utc_now()
+        journey = ["search_impression", "view"]
+        if random.random() < 0.70:
+            journey.append("click")
+        if "click" in journey and random.random() < 0.35:
+            journey.append("save")
+        if "click" in journey and random.random() < 0.25:
+            journey.append("booking_start")
+        if "booking_start" in journey and random.random() < 0.55:
+            journey.append("booking_complete")
+        for offset, event_name in enumerate(journey):
+            if len(records) >= count:
+                break
+            records.append(generate_listing_event(
+                session_id=session_id,
+                canonical_event=event_name,
+                listing_id=listing_id,
+                guest_id=guest_id,
+                event_timestamp=started_at + timedelta(seconds=offset * 20),
+            ))
     publish(STREAM_EVENTS, records)
 
 
 def run_transactions_batch() -> None:
     """
-    Mid-frequency: 5 new bookings + 10 booking updates + 30 reviews per run.
-    The 2:1 update-to-insert ratio stresses the Silver merge logic.
+    Generate 15 initial booking records, 10 later snapshots of the same logical
+    bookings, and 30 reviews linked to completed bookings.
     """
-    records = (
-        [generate_booking(is_new=True)  for _ in range(5)]  +
-        [generate_booking(is_new=False) for _ in range(10)] +
-        [generate_review()              for _ in range(30)]
-    )
+    update_numbers = random.sample(_BOOKING_BASE_NUMS, 10)
+    initial_bookings = [
+        generate_booking(is_new=True, booking_num=num, status="confirmed")
+        for num in update_numbers
+    ]
+    updated_bookings = [
+        generate_booking(
+            is_new=False,
+            booking_num=num,
+            status="completed" if index < 6 else random.choice(["cancelled", "no_show"]),
+        )
+        for index, num in enumerate(update_numbers)
+    ]
+    fresh_bookings = [generate_booking(is_new=True) for _ in range(5)]
+    completed = [b for b in updated_bookings if b["booking_status"].lower() == "completed"]
+    reviews = [generate_review(random.choice(completed)) for _ in range(30)]
+    records = initial_bookings + updated_bookings + fresh_bookings + reviews
     publish(STREAM_TRANSACTIONS, records)
 
 
@@ -664,9 +781,9 @@ def run_dimensions_batch() -> None:
     These are upserted in Silver. Listings and hosts trigger SCD-2 snapshots.
     """
     records = (
-        [generate_listing()        for _ in range(10)]  +
-        [generate_host()           for _ in range(5)]   +
-        [generate_guest()          for _ in range(20)]  +
+        [generate_listing(listing_id) for listing_id in ACTIVE_LISTING_IDS] +
+        [generate_host(host_id)       for host_id in ACTIVE_HOST_IDS]       +
+        [generate_guest(guest_id)     for guest_id in ACTIVE_GUEST_IDS]     +
         [generate_calendar_entry() for _ in range(100)]
     )
     publish(STREAM_DIMENSIONS, records)

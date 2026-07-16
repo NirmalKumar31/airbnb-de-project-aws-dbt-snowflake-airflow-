@@ -17,10 +17,11 @@ Or test a specific entity:
 
 import json
 import logging
-import os
-
 log = logging.getLogger()
 log.setLevel(logging.INFO)
+
+VALID_STREAM_TYPES = {"all", "events", "transactions", "dimensions"}
+MAX_EVENT_COUNT = 5000
 
 
 def handler(event: dict, context) -> dict:
@@ -31,6 +32,11 @@ def handler(event: dict, context) -> dict:
     """
     stream_type = event.get("stream_type", "all")
     count = event.get("count", 50)  # only used for events stream
+
+    if stream_type not in VALID_STREAM_TYPES:
+        raise ValueError(f"Invalid stream_type: {stream_type}")
+    if not isinstance(count, int) or isinstance(count, bool) or not 1 <= count <= MAX_EVENT_COUNT:
+        raise ValueError(f"count must be an integer between 1 and {MAX_EVENT_COUNT}")
 
     log.info(f"Invoked with stream_type={stream_type}, count={count}")
 
@@ -46,7 +52,7 @@ def handler(event: dict, context) -> dict:
 
         if stream_type in ("transactions", "all"):
             run_transactions_batch()
-            results["transactions"] = "5 new bookings + 10 updates + 30 reviews published"
+            results["transactions"] = "15 initial bookings + 10 updates + 30 linked reviews published"
 
         if stream_type in ("dimensions", "all"):
             run_dimensions_batch()
@@ -58,9 +64,8 @@ def handler(event: dict, context) -> dict:
             "body": json.dumps({"status": "success", "results": results}),
         }
 
-    except Exception as e:
-        log.error(f"Generator failed: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"status": "error", "message": str(e)}),
-        }
+    except Exception:
+        # Raising marks asynchronous EventBridge invocations as failed so Lambda
+        # retries and configured dead-letter destinations can operate correctly.
+        log.exception("Generator failed")
+        raise

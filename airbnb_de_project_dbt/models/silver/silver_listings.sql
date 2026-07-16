@@ -10,7 +10,7 @@ WITH source AS (
     SELECT * FROM {{ ref('bronze_listings') }}
 
     {% if is_incremental() %}
-    WHERE _loaded_at > (
+    WHERE _loaded_at >= (
         SELECT COALESCE(MAX(_loaded_at), '2000-01-01'::TIMESTAMP_TZ)
         FROM {{ this }}
     )
@@ -117,8 +117,18 @@ cleaned AS (
         -- Coordinates
         -- Boston lat ~42, lon ~-71
         -- If lat is negative and lon is positive → likely swapped
-        TRY_TO_DOUBLE(latitude)                    AS latitude,
-        TRY_TO_DOUBLE(longitude)                   AS longitude,
+        CASE
+            WHEN TRY_TO_DOUBLE(latitude) < 0
+             AND TRY_TO_DOUBLE(longitude) > 0
+                THEN TRY_TO_DOUBLE(longitude)
+            ELSE TRY_TO_DOUBLE(latitude)
+        END                                       AS latitude,
+        CASE
+            WHEN TRY_TO_DOUBLE(latitude) < 0
+             AND TRY_TO_DOUBLE(longitude) > 0
+                THEN TRY_TO_DOUBLE(latitude)
+            ELSE TRY_TO_DOUBLE(longitude)
+        END                                       AS longitude,
 
         CASE
             WHEN TRY_TO_DOUBLE(latitude) < 0
@@ -204,7 +214,7 @@ deduped AS (
     SELECT *,
         ROW_NUMBER() OVER (
             PARTITION BY listing_id
-            ORDER BY _loaded_at DESC
+            ORDER BY TRY_TO_TIMESTAMP_TZ(_stream_timestamp) DESC, _loaded_at DESC
         ) AS _row_num
     FROM cleaned
 )
@@ -212,4 +222,3 @@ deduped AS (
 SELECT * EXCLUDE _row_num
 FROM deduped
 WHERE _row_num = 1
-

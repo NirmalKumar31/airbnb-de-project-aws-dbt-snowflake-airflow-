@@ -4,6 +4,11 @@ sources:
   - name: raw
     database: AIRBNB_DE
     schema: RAW
+    config:
+      loaded_at_field: _loaded_at
+      freshness:
+        warn_after: {count: 2, period: hour}
+        error_after: {count: 8, period: hour}
     tables:
       - name: raw_hosts
       - name: raw_listings

@@ -42,14 +42,18 @@ models:
           - not_null
       - name: listing_key
         tests:
+          - not_null
           - relationships:
-              to: ref('gold_dim_listings')
-              field: listing_key
+              arguments:
+                to: ref('gold_dim_listings')
+                field: listing_key
       - name: host_key
         tests:
+          - not_null
           - relationships:
-              to: ref('gold_dim_hosts')
-              field: host_key
+              arguments:
+                to: ref('gold_dim_hosts')
+                field: host_key
       - name: calculated_total_price
         tests:
           - not_null
@@ -73,8 +77,26 @@ models:
       - name: funnel_step
         tests:
           - accepted_values:
-              values: [1, 2, 3, 4, 5, 6]
-              quote: false
+              arguments:
+                values: [1, 2, 3, 4, 5, 6]
+                quote: false
+
+  - name: gold_fct_sessions
+    columns:
+      - name: session_key
+        tests:
+          - not_null
+          - unique
+      - name: session_id
+        tests:
+          - not_null
+          - unique
+      - name: furthest_funnel_step
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6]
+                quote: false
 
   - name: gold_obt_bookings
     columns:
